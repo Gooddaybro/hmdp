@@ -10,6 +10,8 @@ import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisWorker;
 import com.hmdp.utils.UserHolder;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.aop.framework.AopContext;
+import org.springframework.aop.framework.AopProxy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,22 +20,25 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- *  服务实现类
+ * 服务实现类
  * </p>
  *
  * @author 虎哥
  * @since 2021-12-22
  */
 @Service
-public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder> implements IVoucherOrderService {
+public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder>
+        implements IVoucherOrderService {
 
     @Resource
     private ISeckillVoucherService seckillVoucherService;
 
     @Resource
     private RedisWorker redisWorker;
+
     /**
      * 实现优惠券秒杀下单
+     * 
      * @param voucherId
      * @return
      */
@@ -42,36 +47,40 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
         SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
 
-        if(voucher.getBeginTime().isAfter(LocalDateTime.now())){
+        if (voucher.getBeginTime().isAfter(LocalDateTime.now())) {
             return Result.fail("秒杀尚未开始!");
         }
 
-        if(voucher.getEndTime().isBefore(LocalDateTime.now())){
+        if (voucher.getEndTime().isBefore(LocalDateTime.now())) {
             return Result.fail("秒杀已经结束!");
         }
 
-        if(voucher.getStock()<1){
+        if (voucher.getStock() < 1) {
             return Result.fail("库存不足!");
         }
+        Long userId = UserHolder.getUser().getId();
+        synchronized (userId.toString().intern()) {
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId);
+        }
 
-        return createVoucherOrder(voucherId);
     }
 
     @Transactional
-    public synchronized Result createVoucherOrder(Long voucherId) {
-        //一人一单
-        Long userId= UserHolder.getUser().getId();
-        Long count= query().eq("user_id",userId)
+    public Result createVoucherOrder(Long voucherId) {
+        // 一人一单
+        Long userId = UserHolder.getUser().getId();
+        Long count = query().eq("user_id", userId)
                 .eq("voucher_id", voucherId)
                 .count();
-        if(count>0){
+        if (count > 0) {
             return Result.fail("用户已经买过一次!");
         }
 
         boolean success = seckillVoucherService.update()
                 .setSql("stock = stock - 1")
                 .eq("voucher_id", voucherId)
-                .gt("stock",0)
+                .gt("stock", 0)
                 .update();
         if (!success) {
             return Result.fail("库存不足！");
