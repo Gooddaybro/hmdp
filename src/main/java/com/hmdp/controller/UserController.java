@@ -41,7 +41,6 @@ public class UserController {
     public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
         return userService.sendCode(phone,session);
     }
-
     /**
      * 实现登录功能
      * @param loginForm 登录参数，包含手机号、验证码；或者手机号、密码

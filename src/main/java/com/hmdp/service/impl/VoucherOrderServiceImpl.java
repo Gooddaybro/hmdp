@@ -96,6 +96,11 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     }
 
+    /**
+     * 一人一单的实现
+     * @param voucherId
+     * @return
+     */
     @Transactional
     public Result createVoucherOrder(Long voucherId) {
         // 一人一单
